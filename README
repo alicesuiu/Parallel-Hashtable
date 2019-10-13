@@ -1,0 +1,81 @@
+ASC -  Tema 3 - Parallel Hashtable
+Autor: Alice Suiu
+Grupa: 336CB
+
+IMPLEMENTARE:
+
+Hashtable-ul creat contine elemente de tipul unsigned long long. Primii 32 de
+biti reprezinta cheia si urmatorii 32 de biti reprezinta valoarea. Am ales sa
+stochez astfel elementele datorita usurintei accesarii si modificarii
+hashtable-ului si datorita necesitatii folosirii functiilor atomice care
+primesc ca prim parametru adrese de pointeri de tipul primitivelor.
+
+Hashtable-ul este alocat in VRAM si initial toate elementele din el sunt zero.
+Dimensiunea unui block este de 256, iar numarul de blocuri este determinat de
+dimensiunea hashtable-ului / dimensiunea unui block.
+
+Am folosit doua functii de hash:
+	- Prima functie de hash are forma (a * key % b) % table_size, unde a, b
+	sunt doua numere prime alese din lista de numere prime definita in header.
+	Aceasta functie ofera indexul unde ar trebui inserat elementul in
+	hashtable.
+
+	- A doua functie de hash are forma: constant - (key % constant) unde
+	constant este un numar prim, mai mic decat dimensiunea hashtable-ului,
+	ales random din lista de numere prime definita in header. Rezultatul
+	acestei functii este folosit ca pas de deplasare. Pentru  o aceeasi cheie
+	pasul va ramane constant pe parcursul cautarii, modificandu-se insa pentru
+	o alta cheie. Am considerat ca este mai eficient sa caut o celula libera
+	din pas in pas, acesta depinzand de cheie, decat sa verific liniar
+	celulele din hashtable.
+
+Initial calculez indexul unde ar trebui inserat elementul curent. Daca la
+pozitia calculata de prima functie de hash, celula din hashtable este ocupata,
+atunci cresc indexul obtinut cu pas-ul dat de a doua functie de hash. Aplic
+acest algoritm pana cand dau de o celula libera - adica in care se afla 0.
+Astfel, daca index este valoarea intoarsa de prima functie de hash, cautarile
+in hashtable se vor face pe pozitiile: index, (index + pas) % table_size,
+(index + 2 * pas) % table_size, ... pana cand se gaseste o celula libera. In
+cazul in care am gasit cheia in hashtable, atunci fac doar actualizarea
+valorii.
+
+Metoda pe care am abordat-o necesita ca dimensiunea tabelei sa fie un numar
+prim. Astfel, pornind de la parametrul constructorului sau al functiei reshape
+calculez cel mai apropiat numar prim de parametru => numarul prim gasit va fi
+dimensiunea hashtable-ului.
+
+Pentru a justifica aceasta alegere, consideram urmatoarea situatie in care
+aceasta conditie nu este indeplinita. Presupunem ca dimensiunea tabelei este
+15 si ca pentru o anumita cheie index = 0 si pas = 5. Astfel, cautarile se vor
+face la pozitiile 0, 5, 10, 0, 5, 10, ... repetandu-se la infinit. Singurele
+celule examinate vor fi cele cu indicii 0, 5 si 10. Algoritmul nu va detecta
+niciodata celelalte celule eventual libere care se afla la indicii 1, 2, 3,
+... => Algoritmul intra intr-o bucla infinita.
+
+Presupunem ca dimensiunea tabelei este 13, care este un numar prim, atunci
+cautarile se vor face pentru indicii 0, 5, 10, 2, 7, 12, ... Chiar daca exista
+o singura celula libera aceasta va fi gasita. Astfel, prin utilizarea unui
+numar prim ca dimensiunea a tabelei se asigura faptul ca acesta nu este un
+multiplu al factorului de deplasare, deci in timpul cautarii se vor vizita
+toate celule din hashtable.
+
+Pentru a realiza in mod atomic cautarea unei celule libere in hashtable si
+inserarea efectiva a elementului am folosit operatia atomica 'atomicCAS'. De
+asemenea, pentru a calcula numarul de elemente inserate in hashtable am
+folosit operatia atomica 'atomicAdd'.
+
+In cazul functiei de reshape aloc un hashtable mai mare, a carui dimensiunea
+va fi tot un numar prim. Apoi, iau fiecare element diferit de zero din vechiul
+hashtable si il inserez pe pozitia corecta in noul hashtable.
+
+Am pornit de la presumtia ca fiecare cheie pe care trebuie sa o introduc in
+hashtable nu se gaseste deja in acesta. Respectiv pentru a nu face resize in
+cazul in care cheile se afla deja in hashtable am folosit urmatoarea conditie:
+
+	loadKeys + loadFactor() >= 0.80f, unde loadKeys reprezinta numarul de chei
+	ce trebuie inserate / dimensiunea hashtabel-ului.
+
+Astfel, am eliminat riscul de a dubla dimensiunea tabelei in cazul in care
+cheile se afla deja in hashtable. De asemenea, cu aceasta conditie am reusit
+sa mentin ca factorul de incarcare sa nu depaseasca aproximativ 2/3 din
+dimensiunea tabelei.
